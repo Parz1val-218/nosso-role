@@ -52,7 +52,7 @@ export default function ResultadoCard({
         )}
 
         {/* =================================================
-            INFORMAÇÕES DO GOOGLE
+            INFORMAÇÕES DOS ESTABELECIMENTOS
         ================================================= */}
 
         {(resultado.categoria === "cafes" ||
@@ -61,10 +61,11 @@ export default function ResultadoCard({
 
           <div className="mt-5 space-y-2 text-left">
 
-            {/* AVALIAÇÃO */}
+            {/* AVALIAÇÃO GOOGLE */}
 
-            {"avaliacaoGoogle" in resultado &&
-              resultado.avaliacaoGoogle !== undefined && (
+            {resultado.avaliacaoGoogle !== undefined &&
+              resultado.avaliacaoGoogle !== null && (
+
                 <div className="rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm text-[#5f5954]">
 
                   <div className="flex items-center justify-between">
@@ -76,8 +77,11 @@ export default function ResultadoCard({
                       </strong>
                     </span>
 
-                    {"quantidadeAvaliacoesGoogle" in resultado &&
-                      resultado.quantidadeAvaliacoesGoogle !== undefined && (
+                    {resultado.quantidadeAvaliacoesGoogle !==
+                      undefined &&
+                      resultado.quantidadeAvaliacoesGoogle !==
+                        null && (
+
                         <span className="text-xs text-[#8a847f]">
                           {resultado.quantidadeAvaliacoesGoogle.toLocaleString(
                             "pt-BR"
@@ -93,55 +97,76 @@ export default function ResultadoCard({
 
             {/* PREÇO */}
 
-            {"precoMedio" in resultado &&
-              resultado.precoMedio !== undefined && (
-                <div className="rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm text-[#5f5954]">
-                  💰 Preço médio:{" "}
-                  <strong>
-                    R$ {resultado.precoMedio.toFixed(2)}
-                  </strong>
-                </div>
-              )}
+            {resultado.precoMedio !== undefined && (
+              <div className="rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm text-[#5f5954]">
+                💰 Preço médio:{" "}
+                <strong>
+                  R$ {resultado.precoMedio.toFixed(2)}
+                </strong>
+              </div>
+            )}
 
             {/* TELEFONE */}
 
-            {"telefone" in resultado &&
-              resultado.telefone && (
-                <a
-                  href={`tel:${resultado.telefone}`}
-                  className="block rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm text-[#5f5954] transition hover:bg-[#eeeae5]"
-                >
-                  📞 {resultado.telefone}
-                </a>
-              )}
+            {resultado.telefone && (
+              <a
+                href={`tel:${resultado.telefone}`}
+                className="block rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm text-[#5f5954] transition hover:bg-[#eeeae5]"
+              >
+                📞 {resultado.telefone}
+              </a>
+            )}
 
             {/* SITE */}
 
-            {"websiteUri" in resultado &&
-              resultado.websiteUri && (
-                <a
-                  href={resultado.websiteUri}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm font-semibold text-[#5f7769] transition hover:bg-[#eeeae5]"
-                >
-                  🌐 Visitar site
-                </a>
-              )}
+            {resultado.websiteUri && (
+              <a
+                href={resultado.websiteUri}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm font-semibold text-[#5f7769] transition hover:bg-[#eeeae5]"
+              >
+                🌐 Visitar site
+              </a>
+            )}
 
             {/* GOOGLE MAPS */}
 
-            {"googleMapsUri" in resultado &&
-              resultado.googleMapsUri && (
-                <a
-                  href={resultado.googleMapsUri}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm font-semibold text-[#5f7769] transition hover:bg-[#eeeae5]"
-                >
-                  📍 Ver no Google Maps
-                </a>
-              )}
+            {resultado.googleMapsUri && (
+              <a
+                href={resultado.googleMapsUri}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm font-semibold text-[#5f7769] transition hover:bg-[#eeeae5]"
+              >
+                📍 Ver no Google Maps
+              </a>
+            )}
+
+          </div>
+        )}
+
+        {/* =================================================
+            LOCALIZAÇÃO
+        ================================================= */}
+
+        {resultado.localizacao && (
+          <div className="mt-5 space-y-2 text-left">
+
+            {resultado.localizacao.cidade && (
+              <div className="rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm text-[#5f5954]">
+                📍 {resultado.localizacao.cidade}
+                {resultado.localizacao.estado
+                  ? ` - ${resultado.localizacao.estado}`
+                  : ""}
+              </div>
+            )}
+
+            {resultado.localizacao.endereco && (
+              <div className="rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm text-[#5f5954]">
+                🗺️ {resultado.localizacao.endereco}
+              </div>
+            )}
 
           </div>
         )}
@@ -153,11 +178,9 @@ export default function ResultadoCard({
         {resultado.categoria === "filmes" && (
           <div className="mt-5 space-y-2 text-left">
 
-            {resultado.ano !== undefined && (
-              <div className="rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm text-[#5f5954]">
-                📅 {resultado.ano}
-              </div>
-            )}
+            <div className="rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm text-[#5f5954]">
+              📅 {resultado.ano}
+            </div>
 
             {resultado.duracao && (
               <div className="rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm text-[#5f5954]">
@@ -165,21 +188,21 @@ export default function ResultadoCard({
               </div>
             )}
 
-            {resultado.generos &&
-              resultado.generos.length > 0 && (
-                <div className="rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm text-[#5f5954]">
-                  🎭 {resultado.generos.join(", ")}
-                </div>
-              )}
+            {resultado.generos?.length > 0 && (
+              <div className="rounded-xl bg-[#f6f4f1] px-4 py-3 text-sm text-[#5f5954]">
+                🎭 {resultado.generos?.join(", ")}
+              </div>
+            )}
 
           </div>
         )}
 
-        {/* STREAMING */}
+        {/* =================================================
+            STREAMING
+        ================================================= */}
 
         {resultado.categoria === "filmes" &&
-          resultado.streaming &&
-          resultado.streaming.length > 0 && (
+          resultado.streaming?.length > 0 && (
 
             <div className="mt-5 rounded-2xl bg-[#f6f4f1] p-4 text-left">
 
@@ -189,16 +212,14 @@ export default function ResultadoCard({
 
               <div className="mt-2 flex flex-wrap gap-2">
 
-                {resultado.streaming.map(
-                  (servico) => (
-                    <span
-                      key={servico}
-                      className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#5f5954] shadow-sm"
-                    >
-                      {servico}
-                    </span>
-                  )
-                )}
+                {resultado.streaming?.map((servico) => (
+                  <span
+                    key={servico}
+                    className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#5f5954] shadow-sm"
+                  >
+                    {servico}
+                  </span>
+                ))}
 
               </div>
 
@@ -210,21 +231,18 @@ export default function ResultadoCard({
         ================================================= */}
 
         {resultado.categoria === "passeios" &&
-          resultado.tipos &&
-          resultado.tipos.length > 0 && (
+          resultado.tipos?.length > 0 && (
 
             <div className="mt-5 flex flex-wrap justify-center gap-2">
 
-              {resultado.tipos.map(
-                (tipo) => (
-                  <span
-                    key={tipo}
-                    className="rounded-full bg-[#f6f4f1] px-3 py-1.5 text-xs font-semibold text-[#5f5954]"
-                  >
-                    {tipo}
-                  </span>
-                )
-              )}
+              {resultado.tipos.map((tipo) => (
+                <span
+                  key={tipo}
+                  className="rounded-full bg-[#f6f4f1] px-3 py-1.5 text-xs font-semibold text-[#5f5954]"
+                >
+                  {tipo}
+                </span>
+              ))}
 
             </div>
           )}
@@ -234,21 +252,18 @@ export default function ResultadoCard({
         ================================================= */}
 
         {resultado.categoria === "casa" &&
-          resultado.tipos &&
-          resultado.tipos.length > 0 && (
+          resultado.tipos?.length > 0 && (
 
             <div className="mt-5 flex flex-wrap justify-center gap-2">
 
-              {resultado.tipos.map(
-                (tipo) => (
-                  <span
-                    key={tipo}
-                    className="rounded-full bg-[#f6f4f1] px-3 py-1.5 text-xs font-semibold text-[#5f5954]"
-                  >
-                    {tipo}
-                  </span>
-                )
-              )}
+              {resultado.tipos.map((tipo) => (
+                <span
+                  key={tipo}
+                  className="rounded-full bg-[#f6f4f1] px-3 py-1.5 text-xs font-semibold text-[#5f5954]"
+                >
+                  {tipo}
+                </span>
+              ))}
 
             </div>
           )}
@@ -258,21 +273,39 @@ export default function ResultadoCard({
         ================================================= */}
 
         {resultado.categoria === "lanches" &&
-          resultado.tipo &&
-          resultado.tipo.length > 0 && (
+          resultado.tipos?.length > 0 && (
 
             <div className="mt-5 flex flex-wrap justify-center gap-2">
 
-              {resultado.tipo.map(
-                (tipo) => (
-                  <span
-                    key={tipo}
-                    className="rounded-full bg-[#f6f4f1] px-3 py-1.5 text-xs font-semibold text-[#5f5954]"
-                  >
-                    {tipo}
-                  </span>
-                )
-              )}
+              {resultado.tipos.map((tipo) => (
+                <span
+                  key={tipo}
+                  className="rounded-full bg-[#f6f4f1] px-3 py-1.5 text-xs font-semibold text-[#5f5954]"
+                >
+                  {tipo}
+                </span>
+              ))}
+
+            </div>
+          )}
+
+        {/* =================================================
+            CULINÁRIA DOS RESTAURANTES
+        ================================================= */}
+
+        {resultado.categoria === "restaurantes" &&
+          resultado.culinaria?.length > 0 && (
+
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+
+              {resultado.culinaria.map((tipo) => (
+                <span
+                  key={tipo}
+                  className="rounded-full bg-[#f6f4f1] px-3 py-1.5 text-xs font-semibold text-[#5f5954]"
+                >
+                  {tipo}
+                </span>
+              ))}
 
             </div>
           )}

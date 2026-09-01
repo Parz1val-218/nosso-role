@@ -1,4 +1,4 @@
-tsx
+
 "use client";
 
 import { Role } from "@/data/types";

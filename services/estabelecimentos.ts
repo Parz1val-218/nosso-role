@@ -7,7 +7,7 @@ type ResultadoOSM = {
   name?: string;
   type?: string;
   category?: string;
-  address?: {
+  address: {
     city?: string;
     town?: string;
     municipality?: string;
@@ -26,18 +26,17 @@ function normalizarEstado(
     return "";
   }
 
+  const valor = estado.trim();
+
   if (
-    estado.startsWith("BR-")
+    valor.toUpperCase().startsWith("BR-")
   ) {
-    return estado
-      .replace("BR-", "")
+    return valor
+      .replace(/^BR-/i, "")
       .toUpperCase();
   }
 
-  const estados: Record<
-    string,
-    string
-  > = {
+  const estados: Record<string, string> = {
     Acre: "AC",
     Alagoas: "AL",
     Amapá: "AP",
@@ -67,9 +66,16 @@ function normalizarEstado(
     Tocantins: "TO",
   };
 
+  const estadoEncontrado =
+    Object.entries(estados).find(
+      ([nome]) =>
+        nome.toLowerCase() ===
+        valor.toLowerCase()
+    );
+
   return (
-    estados[estado] ??
-    estado.toUpperCase()
+    estadoEncontrado?.[1] ??
+    valor.toUpperCase()
   );
 }
 
@@ -108,7 +114,7 @@ function determinarCategoria(
 function criarRole(
   resultado: ResultadoOSM
 ): Role | null {
-  if (!resultado.name) {
+  if (!resultado.name?.trim()) {
     return null;
   }
 
@@ -138,13 +144,12 @@ function criarRole(
   return {
     id: `osm-${resultado.place_id}`,
 
-    nome: resultado.name,
+    nome: resultado.name.trim(),
 
     descricao:
       categoria === "cafes"
         ? "Café encontrado próximo de vocês."
-        : categoria ===
-          "lanches"
+        : categoria === "lanches"
         ? "Lugar para comer algo."
         : "Restaurante encontrado próximo de vocês.",
 
@@ -153,20 +158,21 @@ function criarRole(
     emoji:
       categoria === "cafes"
         ? "☕"
-        : categoria ===
-          "lanches"
+        : categoria === "lanches"
         ? "🍔"
         : "🍝",
+
+    tipos: [],
 
     localizacao: {
       cidade,
       estado,
-
-      latitude:
-        Number(resultado.lat),
-
-      longitude:
-        Number(resultado.lon),
+      latitude: Number(
+        resultado.lat
+      ),
+      longitude: Number(
+        resultado.lon
+      ),
     },
   } as Role;
 }
@@ -182,9 +188,16 @@ export async function buscarEstabelecimentos(
     return [];
   }
 
-  const consulta = encodeURIComponent(
-    `${cidade}, ${estado}, Brasil`
-  );
+  const consulta =
+    encodeURIComponent(
+      `${cidade}, ${estado}, Brasil`
+    );
+
+  /*
+   * =====================================================
+   * LOCALIZAR CIDADE
+   * =====================================================
+   */
 
   const url =
     `https://nominatim.openstreetmap.org/search` +
@@ -193,15 +206,13 @@ export async function buscarEstabelecimentos(
     `&limit=1` +
     `&addressdetails=1`;
 
-  const resposta = await fetch(
-    url,
-    {
+  const resposta =
+    await fetch(url, {
       headers: {
         Accept:
           "application/json",
       },
-    }
-  );
+    });
 
   if (!resposta.ok) {
     throw new Error(
@@ -227,21 +238,48 @@ export async function buscarEstabelecimentos(
   const longitude =
     Number(cidades[0].lon);
 
+  if (
+    Number.isNaN(latitude) ||
+    Number.isNaN(longitude)
+  ) {
+    throw new Error(
+      "As coordenadas da cidade são inválidas."
+    );
+  }
+
   /*
-   * Busca estabelecimentos
-   * próximos ao centro da cidade.
-   *
-   * Esta etapa usa Overpass/OpenStreetMap.
+   * =====================================================
+   * BUSCAR ESTABELECIMENTOS
+   * =====================================================
    */
 
   const overpassQuery = `
 [out:json][timeout:25];
 
 (
-  node["amenity"="cafe"](around:15000,${latitude},${longitude});
-  node["amenity"="restaurant"](around:15000,${latitude},${longitude});
-  node["amenity"="fast_food"](around:15000,${latitude},${longitude});
-  node["amenity"="bakery"](around:15000,${latitude},${longitude});
+  node["amenity"="cafe"](
+    around:15000,
+    ${latitude},
+    ${longitude}
+  );
+
+  node["amenity"="restaurant"](
+    around:15000,
+    ${latitude},
+    ${longitude}
+  );
+
+  node["amenity"="fast_food"](
+    around:15000,
+    ${latitude},
+    ${longitude}
+  );
+
+  node["amenity"="bakery"](
+    around:15000,
+    ${latitude},
+    ${longitude}
+  );
 );
 
 out body;
@@ -280,50 +318,70 @@ out body;
       ? dados.elements
       : [];
 
-  const resultados: ResultadoOSM[] =
-    elementos.map(
-      (elemento: any) => ({
-        place_id:
-          elemento.id,
+  /*
+   * =====================================================
+   * TRANSFORMAR OSM EM RESULTADO INTERNO
+   * =====================================================
+   */
 
-        lat:
-          String(
+  const resultados: ResultadoOSM[] =
+    elementos
+      .filter(
+        (elemento: any) =>
+          elemento &&
+          elemento.id &&
+          elemento.lat !== undefined &&
+          elemento.lon !== undefined
+      )
+      .map(
+        (elemento: any) => ({
+          place_id:
+            elemento.id,
+
+          lat: String(
             elemento.lat
           ),
 
-        lon:
-          String(
+          lon: String(
             elemento.lon
           ),
 
-        name:
-          elemento.tags?.name,
+          name:
+            elemento.tags?.name,
 
-        type:
-          elemento.tags?.amenity,
+          type:
+            elemento.tags?.amenity,
 
-        category:
-          elemento.tags?.cuisine,
+          category:
+            elemento.tags?.cuisine,
 
-        address: {
-          city,
-          state: estado,
-        },
-      })
-    );
-
-  const roles = resultados
-    .map(criarRole)
-    .filter(
-      (
-        role
-      ): role is Role =>
-        role !== null
-    );
+          address: {
+            city: cidade,
+            state: estado,
+          },
+        })
+      );
 
   /*
-   * Remove estabelecimentos
-   * sem nome e duplicados.
+   * =====================================================
+   * TRANSFORMAR EM ROLE
+   * =====================================================
+   */
+
+  const roles =
+    resultados
+      .map(criarRole)
+      .filter(
+        (
+          role
+        ): role is Role =>
+          role !== null
+      );
+
+  /*
+   * =====================================================
+   * REMOVER DUPLICADOS
+   * =====================================================
    */
 
   const unicos =

@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
 import {
   buscarEstabelecimentosInternet,
 } from "@/services/buscaInternet";
+
 import Header from "@/components/Header";
 import Menu from "@/components/Menu";
 import CategoriaCard from "@/components/CategoriaCard";
@@ -126,6 +128,16 @@ export default function Home() {
     useState<string | null>(null);
 
   /*
+   * Guarda os últimos sorteios feitos
+   * durante a sessão atual.
+   *
+   * Isso impede que o botão "Novamente"
+   * fique entregando a mesma coisa.
+   */
+  const [ultimosSorteios, setUltimosSorteios] =
+    useState<string[]>([]);
+
+  /*
    * =======================================================
    * FILTROS
    * =======================================================
@@ -146,21 +158,39 @@ export default function Home() {
   const [localizacao, setLocalizacao] =
     useState<LocalizacaoUsuario | null>(null);
 
-    const [
-  estabelecimentosInternet,
-  setEstabelecimentosInternet,
-] = useState<Role[]>([]);
+  /*
+   * =======================================================
+   * ESTABELECIMENTOS DA INTERNET
+   * =======================================================
+   */
 
-const [
-  buscandoEstabelecimentos,
-  setBuscandoEstabelecimentos,
-] = useState(false);
+  const [
+    estabelecimentosInternet,
+    setEstabelecimentosInternet,
+  ] = useState<Role[]>([]);
 
-const [
-  erroEstabelecimentos,
-  setErroEstabelecimentos,
-] =
-  useState<string | null>(null);
+  const [
+    buscandoEstabelecimentos,
+    setBuscandoEstabelecimentos,
+  ] = useState(false);
+
+  const [
+    erroEstabelecimentos,
+    setErroEstabelecimentos,
+  ] = useState<string | null>(null);
+
+  /*
+   * Guarda a última cidade pesquisada.
+   */
+  const buscaRealizadaRef =
+    useRef<string | null>(null);
+
+  /*
+   * Impede duas buscas simultâneas.
+   */
+  const buscaEmAndamentoRef =
+    useRef<string | null>(null);
+
   /*
    * =======================================================
    * FAVORITOS
@@ -222,82 +252,141 @@ const [
    */
 
   function atualizarLocalizacao(
-    novaLocalizacao: LocalizacaoUsuario
+    novaLocalizacao: LocalizacaoUsuario | null
   ) {
     setLocalizacao(novaLocalizacao);
-    salvarLocalizacao(novaLocalizacao);
-  }
-useEffect(() => {
-  if (
-    !categoriaSelecionada ||
-    !CATEGORIAS_COM_LOCALIZACAO.includes(
-      categoriaSelecionada
-    ) ||
-    !localizacao?.cidade ||
-    !localizacao?.estado
-  ) {
-    setEstabelecimentosInternet([]);
-    return;
+
+    if (novaLocalizacao) {
+      salvarLocalizacao(novaLocalizacao);
+    }
   }
 
-  let cancelado = false;
+  /*
+   * =======================================================
+   * BUSCA DE ESTABELECIMENTOS
+   * =======================================================
+   */
 
-  const timer = setTimeout(
-    async () => {
-      try {
-        setBuscandoEstabelecimentos(true);
-        setErroEstabelecimentos(null);
+  useEffect(() => {
+    if (
+      !categoriaSelecionada ||
+      !CATEGORIAS_COM_LOCALIZACAO.includes(
+        categoriaSelecionada
+      ) ||
+      !localizacao?.cidade ||
+      !localizacao?.estado
+    ) {
+      return;
+    }
 
-        const resultados =
-          await buscarEstabelecimentosInternet(
-            localizacao.cidade,
-            localizacao.estado
+    const cidade =
+      localizacao.cidade.trim();
+
+    const estado =
+      localizacao.estado.trim();
+
+    if (!cidade || !estado) {
+      return;
+    }
+
+    const chaveBusca =
+      `${cidade.toLowerCase()}-${estado.toLowerCase()}`;
+
+    /*
+     * Já pesquisamos essa cidade.
+     * Não precisamos consultar a internet novamente.
+     */
+    if (
+      buscaRealizadaRef.current ===
+      chaveBusca
+    ) {
+      return;
+    }
+
+    /*
+     * Já existe uma busca em andamento
+     * para essa cidade.
+     */
+    if (
+      buscaEmAndamentoRef.current ===
+      chaveBusca
+    ) {
+      return;
+    }
+
+    let cancelado = false;
+
+    const timer = setTimeout(
+      async () => {
+        try {
+          buscaEmAndamentoRef.current =
+            chaveBusca;
+
+          setBuscandoEstabelecimentos(true);
+          setErroEstabelecimentos(null);
+
+          const resultados =
+            await buscarEstabelecimentosInternet(
+              cidade,
+              estado
+            );
+
+          if (cancelado) {
+            return;
+          }
+
+          setEstabelecimentosInternet(
+            resultados
           );
 
-        if (cancelado) {
-          return;
-        }
+          buscaRealizadaRef.current =
+            chaveBusca;
+        } catch (erro) {
+          if (cancelado) {
+            return;
+          }
 
-        setEstabelecimentosInternet(
-          resultados
-        );
-      } catch (erro) {
-        if (cancelado) {
-          return;
-        }
-
-        console.error(
-          "Erro ao buscar estabelecimentos:",
-          erro
-        );
-
-        setEstabelecimentosInternet([]);
-
-        setErroEstabelecimentos(
-          erro instanceof Error
-            ? erro.message
-            : "Não foi possível buscar estabelecimentos na internet."
-        );
-      } finally {
-        if (!cancelado) {
-          setBuscandoEstabelecimentos(
-            false
+          console.error(
+            "Erro ao buscar estabelecimentos:",
+            erro
           );
-        }
-      }
-    },
-    800
-  );
 
-  return () => {
-    cancelado = true;
-    clearTimeout(timer);
-  };
-}, [
-  categoriaSelecionada,
-  localizacao?.cidade,
-  localizacao?.estado,
-]);
+          setEstabelecimentosInternet([]);
+
+          setErroEstabelecimentos(
+            erro instanceof Error
+              ? erro.message
+              : "Não foi possível buscar estabelecimentos na internet."
+          );
+        } finally {
+          if (
+            buscaEmAndamentoRef.current ===
+            chaveBusca
+          ) {
+            buscaEmAndamentoRef.current =
+              null;
+          }
+
+          if (!cancelado) {
+            setBuscandoEstabelecimentos(
+              false
+            );
+          }
+        }
+      },
+      800
+    );
+
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+    };
+  }, [
+    categoriaSelecionada,
+    localizacao?.cidade,
+    localizacao?.estado,
+  ]);
+
   /*
    * =======================================================
    * FAVORITOS
@@ -309,18 +398,27 @@ useEffect(() => {
       return;
     }
 
-    const jaExiste = favoritos.some(
-      (role) => role.id === resultado.id
+    const jaExiste =
+      favoritos.some(
+        (role) =>
+          role.id === resultado.id
+      );
+
+    const novosFavoritos =
+      jaExiste
+        ? favoritos.filter(
+            (role) =>
+              role.id !== resultado.id
+          )
+        : [...favoritos, resultado];
+
+    setFavoritos(
+      novosFavoritos
     );
 
-    const novosFavoritos = jaExiste
-      ? favoritos.filter(
-          (role) => role.id !== resultado.id
-        )
-      : [...favoritos, resultado];
-
-    setFavoritos(novosFavoritos);
-    salvarFavoritos(novosFavoritos);
+    salvarFavoritos(
+      novosFavoritos
+    );
   }
 
   function resultadoEhFavorito() {
@@ -329,18 +427,27 @@ useEffect(() => {
     }
 
     return favoritos.some(
-      (role) => role.id === resultado.id
+      (role) =>
+        role.id === resultado.id
     );
   }
 
-  function removerFavorito(id: string) {
+  function removerFavorito(
+    id: string
+  ) {
     const novosFavoritos =
       favoritos.filter(
-        (role) => role.id !== id
+        (role) =>
+          role.id !== id
       );
 
-    setFavoritos(novosFavoritos);
-    salvarFavoritos(novosFavoritos);
+    setFavoritos(
+      novosFavoritos
+    );
+
+    salvarFavoritos(
+      novosFavoritos
+    );
   }
 
   /*
@@ -355,21 +462,21 @@ useEffect(() => {
     const categoria =
       id as Categoria;
 
-    setCategoriaSelecionada(categoria);
+    setCategoriaSelecionada(
+      categoria
+    );
+
     setResultado(null);
     setMensagemErro(null);
 
     /*
-     * Os filtros são reiniciados ao
-     * trocar de categoria.
+     * Nova categoria = nova sequência
+     * de sorteios.
      */
+    setUltimosSorteios([]);
+
     setPrecoMaximo(undefined);
     setExcluirRealizados(true);
-
-    /*
-     * A localização NÃO é apagada.
-     * Ela poderá ser reutilizada.
-     */
 
     setPagina("sorteio");
   }
@@ -385,6 +492,11 @@ useEffect(() => {
     setResultado(null);
     setMensagemErro(null);
     setAvaliando(null);
+
+    /*
+     * Limpa a sequência da sessão.
+     */
+    setUltimosSorteios([]);
 
     setPagina("inicio");
   }
@@ -432,60 +544,207 @@ useEffect(() => {
         categoriaSelecionada
       );
 
-const roles = [
-  ...dadosPorCategoria[
-    categoriaSelecionada
-  ],
+    /*
+     * Biblioteca local + estabelecimentos
+     * encontrados na internet.
+     */
+    const roles = [
+      ...dadosPorCategoria[
+        categoriaSelecionada
+      ],
 
-  ...estabelecimentosInternet.filter(
-    (role) =>
-      role.categoria ===
-      categoriaSelecionada
-  ),
-];
+      ...estabelecimentosInternet.filter(
+        (role) =>
+          role.categoria ===
+          categoriaSelecionada
+      ),
+    ];
 
-    const idsRealizados =
+    /*
+     * IDs dos rolês já aprovados.
+     */
+    const idsHistorico =
       historico.map(
         (item) => item.id
       );
 
-    const sorteio = sortearRole(
-      roles,
-      {
-        filtros: {
-          categoria:
-            categoriaSelecionada,
+    /*
+     * IDs que devem ser evitados:
+     *
+     * 1. Rolês já realizados
+     * 2. Resultado atualmente exibido
+     * 3. Últimos sorteios da sessão
+     */
+    const idsParaEvitar = [
+      ...idsHistorico,
 
-          cidade:
-            usaLocalizacao &&
-            localizacao?.cidade
-              ? localizacao.cidade
-              : undefined,
+      ...(resultado
+        ? [resultado.id]
+        : []),
 
-          estado:
-            usaLocalizacao &&
-            localizacao?.estado
-              ? localizacao.estado
-              : undefined,
+      ...ultimosSorteios,
+    ];
 
-          precoMaximo:
-            usaLocalizacao
-              ? precoMaximo
-              : undefined,
+    /*
+     * Remove duplicidades.
+     */
+    const idsRealizados =
+      Array.from(
+        new Set(idsParaEvitar)
+      );
 
-          excluirRealizados,
-        },
+    /*
+     * Primeiro tentamos respeitar
+     * todos os bloqueios.
+     */
+    const sorteio =
+      sortearRole(
+        roles,
+        {
+          filtros: {
+            categoria:
+              categoriaSelecionada,
 
-        idsRealizados,
-      }
-    );
+            cidade:
+              usaLocalizacao &&
+              localizacao?.cidade
+                ? localizacao.cidade
+                : undefined,
 
-    if (sorteio.sucesso) {
+            estado:
+              usaLocalizacao &&
+              localizacao?.estado
+                ? localizacao.estado
+                : undefined,
+
+            precoMaximo:
+              usaLocalizacao
+                ? precoMaximo
+                : undefined,
+
+            excluirRealizados,
+          },
+
+          idsRealizados,
+        }
+      );
+
+    if (
+      sorteio.sucesso &&
+      sorteio.resultado
+    ) {
+      const novoResultado =
+        sorteio.resultado;
+
       setResultado(
-        sorteio.resultado
+        novoResultado
+      );
+
+      /*
+       * Guarda o novo resultado.
+       *
+       * Mantemos somente os últimos
+       * 5 sorteios.
+       */
+      setUltimosSorteios(
+        (anteriores) => {
+          const atualizados = [
+            ...anteriores.filter(
+              (id) =>
+                id !==
+                novoResultado.id
+            ),
+
+            novoResultado.id,
+          ];
+
+          return atualizados.slice(
+            -5
+          );
+        }
       );
 
       return;
+    }
+
+    /*
+     * Se não encontrou uma opção porque
+     * os últimos sorteios bloquearam tudo,
+     * fazemos uma segunda tentativa
+     * considerando apenas o histórico.
+     *
+     * Assim uma biblioteca pequena
+     * não fica inutilizada.
+     */
+    if (
+      excluirRealizados &&
+      ultimosSorteios.length > 0
+    ) {
+      const sorteioAlternativo =
+        sortearRole(
+          roles,
+          {
+            filtros: {
+              categoria:
+                categoriaSelecionada,
+
+              cidade:
+                usaLocalizacao &&
+                localizacao?.cidade
+                  ? localizacao.cidade
+                  : undefined,
+
+              estado:
+                usaLocalizacao &&
+                localizacao?.estado
+                  ? localizacao.estado
+                  : undefined,
+
+              precoMaximo:
+                usaLocalizacao
+                  ? precoMaximo
+                  : undefined,
+
+              excluirRealizados:
+                true,
+            },
+
+            idsRealizados:
+              idsHistorico,
+          }
+        );
+
+      if (
+        sorteioAlternativo.sucesso &&
+        sorteioAlternativo.resultado
+      ) {
+        const novoResultado =
+          sorteioAlternativo.resultado;
+
+        setResultado(
+          novoResultado
+        );
+
+        setUltimosSorteios(
+          (anteriores) => {
+            const atualizados = [
+              ...anteriores.filter(
+                (id) =>
+                  id !==
+                  novoResultado.id
+              ),
+
+              novoResultado.id,
+            ];
+
+            return atualizados.slice(
+              -5
+            );
+          }
+        );
+
+        return;
+      }
     }
 
     setResultado(null);
@@ -512,9 +771,13 @@ const roles = [
     }
 
     const novoHistorico =
-      adicionarAoHistorico(resultado);
+      adicionarAoHistorico(
+        resultado
+      );
 
-    setHistorico(novoHistorico);
+    setHistorico(
+      novoHistorico
+    );
 
     setResultado(null);
     setMensagemErro(null);
@@ -541,16 +804,20 @@ const roles = [
     if (item.localizacao) {
       setLocalizacao({
         latitude:
-          item.localizacao.latitude ?? 0,
+          item.localizacao.latitude,
 
         longitude:
-          item.localizacao.longitude ?? 0,
+          item.localizacao.longitude,
 
         cidade:
-          item.localizacao.cidade ?? "",
+          item.localizacao.cidade ??
+          "",
 
         estado:
-          item.localizacao.estado ?? "",
+          item.localizacao.estado ??
+          "",
+
+        origem: "manual",
       });
     }
 
@@ -569,7 +836,9 @@ const roles = [
     const novoHistorico =
       removerDoHistorico(id);
 
-    setHistorico(novoHistorico);
+    setHistorico(
+      novoHistorico
+    );
 
     if (
       resultado?.id === id
@@ -594,7 +863,8 @@ const roles = [
     );
 
     setGasto(
-      item.avaliacao?.gasto !== undefined
+      item.avaliacao?.gasto !==
+        undefined
         ? String(
             item.avaliacao.gasto
           )
@@ -602,7 +872,8 @@ const roles = [
     );
 
     setComentario(
-      item.avaliacao?.comentario ?? ""
+      item.avaliacao?.comentario ??
+        ""
     );
   }
 
@@ -634,7 +905,10 @@ const roles = [
       gasto.trim() === ""
         ? undefined
         : Number(
-            gasto.replace(",", ".")
+            gasto.replace(
+              ",",
+              "."
+            )
           );
 
     const avaliacao: Avaliacao = {
@@ -642,7 +916,9 @@ const roles = [
 
       gasto:
         valorGasto !== undefined &&
-        !Number.isNaN(valorGasto)
+        !Number.isNaN(
+          valorGasto
+        )
           ? valorGasto
           : undefined,
 
@@ -683,16 +959,20 @@ const roles = [
     if (role.localizacao) {
       setLocalizacao({
         latitude:
-          role.localizacao.latitude ?? 0,
+          role.localizacao.latitude,
 
         longitude:
-          role.localizacao.longitude ?? 0,
+          role.localizacao.longitude,
 
         cidade:
-          role.localizacao.cidade ?? "",
+          role.localizacao.cidade ??
+          "",
 
         estado:
-          role.localizacao.estado ?? "",
+          role.localizacao.estado ??
+          "",
+
+        origem: "manual",
       });
     }
 
@@ -721,7 +1001,10 @@ const roles = [
       const media =
         totalAvaliacoes > 0
           ? avaliados.reduce(
-              (total, item) =>
+              (
+                total,
+                item
+              ) =>
                 total +
                 (item.avaliacao?.nota ??
                   0),
@@ -732,7 +1015,10 @@ const roles = [
 
       const totalGasto =
         avaliados.reduce(
-          (total, item) =>
+          (
+            total,
+            item
+          ) =>
             total +
             (item.avaliacao?.gasto ??
               0),
@@ -743,7 +1029,10 @@ const roles = [
         historico.reduce<
           Record<string, number>
         >(
-          (resultado, item) => {
+          (
+            resultado,
+            item
+          ) => {
             resultado[
               item.categoria
             ] =
@@ -760,8 +1049,12 @@ const roles = [
         Object.entries(
           categoriasContagem
         ).sort(
-          (a, b) =>
-            b[1] - a[1]
+          (
+            a,
+            b
+          ) =>
+            b[1] -
+            a[1]
         )[0];
 
       return {
@@ -816,10 +1109,16 @@ const roles = [
             <div className="grid grid-cols-2 gap-3">
 
               {categorias.map(
-                (categoria) => (
+                (
+                  categoria
+                ) => (
                   <CategoriaCard
-                    key={categoria.id}
-                    id={categoria.id}
+                    key={
+                      categoria.id
+                    }
+                    id={
+                      categoria.id
+                    }
                     emoji={
                       categoria.emoji
                     }
@@ -876,11 +1175,15 @@ const roles = [
                   className="text-[50px]"
                   aria-hidden="true"
                 >
-                  {categoriaAtual?.emoji}
+                  {
+                    categoriaAtual?.emoji
+                  }
                 </div>
 
                 <div className="mt-3 text-[11px] font-bold uppercase tracking-[1.4px] text-[#8b8179]">
-                  {categoriaAtual?.nome}
+                  {
+                    categoriaAtual?.nome
+                  }
                 </div>
 
                 <h2 className="mt-2 text-[27px] font-bold">
@@ -901,40 +1204,56 @@ const roles = [
                     }
                   />
                 )}
-{categoriaUsaLocalizacao &&
-  localizacao?.cidade &&
-  localizacao?.estado && (
-    <div className="mt-3 rounded-2xl bg-[#f6f4f1] px-4 py-3 text-left text-xs text-[#706a65]">
-      {buscandoEstabelecimentos ? (
-        <>
-          🔎 Procurando opções em{" "}
-          <strong>
-            {localizacao.cidade} -{" "}
-            {localizacao.estado}
-          </strong>
-          ...
-        </>
-      ) : (
-        <>
-          📍{" "}
-          <strong>
-            {estabelecimentosInternet.length}
-          </strong>{" "}
-          opções encontradas na internet em{" "}
-          <strong>
-            {localizacao.cidade}
-          </strong>
-          .
-        </>
-      )}
-    </div>
-  )}
 
-{erroEstabelecimentos && (
-  <div className="mt-3 rounded-2xl bg-[#fff4f4] px-4 py-3 text-left text-xs text-[#a05252]">
-    {erroEstabelecimentos}
-  </div>
-)}
+                {categoriaUsaLocalizacao &&
+                  localizacao?.cidade &&
+                  localizacao?.estado && (
+                    <div className="mt-3 rounded-2xl bg-[#f6f4f1] px-4 py-3 text-left text-xs text-[#706a65]">
+
+                      {buscandoEstabelecimentos ? (
+                        <>
+                          🔎 Procurando opções em{" "}
+                          <strong>
+                            {
+                              localizacao.cidade
+                            }{" "}
+                            -{" "}
+                            {
+                              localizacao.estado
+                            }
+                          </strong>
+                          ...
+                        </>
+                      ) : (
+                        <>
+                          📍{" "}
+                          <strong>
+                            {
+                              estabelecimentosInternet.length
+                            }
+                          </strong>{" "}
+                          opções encontradas na
+                          internet em{" "}
+                          <strong>
+                            {
+                              localizacao.cidade
+                            }
+                          </strong>
+                          .
+                        </>
+                      )}
+
+                    </div>
+                  )}
+
+                {erroEstabelecimentos && (
+                  <div className="mt-3 rounded-2xl bg-[#fff4f4] px-4 py-3 text-left text-xs text-[#a05252]">
+                    {
+                      erroEstabelecimentos
+                    }
+                  </div>
+                )}
+
                 {/* FILTROS */}
 
                 {categoriaSelecionada && (
@@ -968,7 +1287,9 @@ const roles = [
                     role="alert"
                     className="mt-4 rounded-2xl bg-[#fff4f4] px-4 py-3 text-sm text-[#a05252]"
                   >
-                    {mensagemErro}
+                    {
+                      mensagemErro
+                    }
                   </div>
                 )}
 
@@ -1005,7 +1326,9 @@ const roles = [
 
             {resultado && (
               <ResultadoCard
-                resultado={resultado}
+                resultado={
+                  resultado
+                }
                 favorito={
                   resultadoEhFavorito()
                 }
@@ -1043,12 +1366,15 @@ const roles = [
                 </h2>
 
                 <span className="rounded-full bg-[#f6f4f1] px-3 py-1 text-xs font-semibold text-[#77716c]">
-                  {historico.length}
+                  {
+                    historico.length
+                  }
                 </span>
 
               </div>
 
-              {historico.length === 0 ? (
+              {historico.length ===
+              0 ? (
 
                 <div className="mt-5 rounded-2xl bg-[#f6f4f1] p-5 text-center">
 
@@ -1076,9 +1402,13 @@ const roles = [
                 <div className="mt-5 space-y-3">
 
                   {historico.map(
-                    (item) => (
+                    (
+                      item
+                    ) => (
                       <div
-                        key={item.id}
+                        key={
+                          item.id
+                        }
                         className="rounded-2xl bg-[#f6f4f1] p-4"
                       >
 
@@ -1095,23 +1425,30 @@ const roles = [
                           <div className="flex items-center gap-3">
 
                             <div className="text-3xl">
-                              {item.emoji}
+                              {
+                                item.emoji
+                              }
                             </div>
 
                             <div className="min-w-0 flex-1">
 
                               <div className="font-semibold">
-                                {item.nome}
+                                {
+                                  item.nome
+                                }
                               </div>
 
                               <div className="mt-1 text-xs text-[#8a847f]">
-                                {item.categoria}
+                                {
+                                  item.categoria
+                                }
                               </div>
 
                               {item.avaliacao && (
                                 <div className="mt-1 text-xs text-[#8a847f]">
                                   {"⭐".repeat(
-                                    item.avaliacao.nota
+                                    item.avaliacao
+                                      .nota
                                   )}
                                 </div>
                               )}
@@ -1186,12 +1523,15 @@ const roles = [
                 </h2>
 
                 <span className="rounded-full bg-[#f6f4f1] px-3 py-1 text-xs font-semibold text-[#77716c]">
-                  {favoritos.length}
+                  {
+                    favoritos.length
+                  }
                 </span>
 
               </div>
 
-              {favoritos.length === 0 ? (
+              {favoritos.length ===
+              0 ? (
 
                 <div className="mt-5 rounded-2xl bg-[#f6f4f1] p-5 text-center">
 
@@ -1218,9 +1558,13 @@ const roles = [
                 <div className="mt-5 space-y-3">
 
                   {favoritos.map(
-                    (role) => (
+                    (
+                      role
+                    ) => (
                       <div
-                        key={role.id}
+                        key={
+                          role.id
+                        }
                         className="rounded-2xl bg-[#f6f4f1] p-4"
                       >
 
@@ -1237,17 +1581,23 @@ const roles = [
                           <div className="flex items-center gap-3">
 
                             <div className="text-3xl">
-                              {role.emoji}
+                              {
+                                role.emoji
+                              }
                             </div>
 
                             <div className="min-w-0 flex-1">
 
                               <div className="font-semibold">
-                                {role.nome}
+                                {
+                                  role.nome
+                                }
                               </div>
 
                               <div className="mt-1 text-xs text-[#8a847f]">
-                                {role.categoria}
+                                {
+                                  role.categoria
+                                }
                               </div>
 
                             </div>
@@ -1325,11 +1675,13 @@ const roles = [
                   </div>
 
                   <div className="mt-2 text-2xl font-bold">
-                    {estatisticas.media
-                      ? estatisticas.media.toFixed(
-                          1
-                        )
-                      : "-"}
+                    {
+                      estatisticas.media
+                        ? estatisticas.media.toFixed(
+                            1
+                          )
+                        : "-"
+                    }
                   </div>
 
                   <div className="text-xs text-[#8a847f]">
@@ -1437,7 +1789,9 @@ const roles = [
               <div className="text-center">
 
                 <div className="text-4xl">
-                  {avaliando.emoji}
+                  {
+                    avaliando.emoji
+                  }
                 </div>
 
                 <h2 className="mt-2 text-xl font-bold">
@@ -1445,7 +1799,9 @@ const roles = [
                 </h2>
 
                 <p className="mt-1 text-sm text-[#77716c]">
-                  {avaliando.nome}
+                  {
+                    avaliando.nome
+                  }
                 </p>
 
               </div>
@@ -1461,16 +1817,23 @@ const roles = [
                 <div className="mt-3 flex justify-center gap-1">
 
                   {[1, 2, 3, 4, 5].map(
-                    (valor) => (
+                    (
+                      valor
+                    ) => (
                       <button
-                        key={valor}
+                        key={
+                          valor
+                        }
                         type="button"
                         onClick={() =>
-                          setNota(valor)
+                          setNota(
+                            valor
+                          )
                         }
                         aria-label={`Dar nota ${valor}`}
                         className={`text-3xl transition ${
-                          valor <= nota
+                          valor <=
+                          nota
                             ? "opacity-100"
                             : "opacity-30"
                         }`}
@@ -1500,10 +1863,15 @@ const roles = [
                   type="number"
                   min="0"
                   step="0.01"
-                  value={gasto}
-                  onChange={(event) =>
+                  value={
+                    gasto
+                  }
+                  onChange={(
+                    event
+                  ) =>
                     setGasto(
-                      event.target.value
+                      event.target
+                        .value
                     )
                   }
                   placeholder="Ex.: 85,00"
@@ -1525,10 +1893,15 @@ const roles = [
 
                 <textarea
                   id="comentario"
-                  value={comentario}
-                  onChange={(event) =>
+                  value={
+                    comentario
+                  }
+                  onChange={(
+                    event
+                  ) =>
                     setComentario(
-                      event.target.value
+                      event.target
+                        .value
                     )
                   }
                   placeholder="Como foi a experiência?"
@@ -1574,7 +1947,7 @@ const roles = [
         ================================================= */}
 
         <footer className="mt-8 text-center text-[11px] text-[#aaa39c]">
-          Feito para duas pessoas que nunca
+          Feito por duas pessoas que nunca
           conseguem decidir o que fazer ❤️
         </footer>
 

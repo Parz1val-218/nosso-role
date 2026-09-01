@@ -20,8 +20,17 @@ export type RoleBase = {
   descricao: string;
   categoria: Categoria;
   emoji: string;
+
   localizacao?: Localizacao;
+
   precoMedio?: number;
+
+  // Dados vindos do Google
+  avaliacaoGoogle?: number | null;
+  quantidadeAvaliacoesGoogle?: number | null;
+  telefone?: string | null;
+  websiteUri?: string | null;
+  googleMapsUri?: string | null;
 };
 
 export type Cafe = RoleBase & {
@@ -60,6 +69,10 @@ export type Casa = RoleBase & {
   categoria: "casa";
   tipos: string[];
   publico: ("casal" | "sozinho" | "grupo")[];
+
+  // Algumas atividades de casa podem permitir
+  // sorteio de filme.
+  sorteiaFilme?: boolean;
 };
 
 export type Role =
